@@ -33,11 +33,13 @@ namespace fs = std::filesystem;
 wchar_t value[MAX_PATH];
 DWORD valueSize = sizeof(value);
 bool bloxstrap = false;
+bool fishstrap = false;
 bool list = false;
 bool skip = false;
 std::string bloxstrapPath;
 std::string roPath;
 std::string defaultPath;
+std::string path;
 std::vector<std::string> file_names;
 // args
 bool import = false;
@@ -135,6 +137,17 @@ typedef int(*NvAPI_DRS_LoadSettings_t)(void*);
 typedef int(*NvAPI_DRS_GetCurrentGlobalProfile_t)(void*, void**);
 typedef int(*NvAPI_DRS_RestoreProfileDefaultSetting_t)(void*, void*, unsigned int);
 typedef int(*NvAPI_DRS_SaveSettings_t)(void*);
+
+// create process parameters
+auto createAndCloseProcess = [](const std::wstring& command) {
+    STARTUPINFOW si = { sizeof(STARTUPINFO) };
+    PROCESS_INFORMATION pi;
+    if (CreateProcessW(NULL, const_cast<LPWSTR>(command.c_str()), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    };
 
 // debugging tools
 void printAddress(const char* name, void* address) {
@@ -276,34 +289,37 @@ void shortcut() {
 }
 
 void verifyFiles(const std::string& path, const std::string& pathToVerify) {
-    // verify files
-    if (!fs::exists(path) && fs::exists(pathToVerify)) {
-        std::cout << "Roblox is installed without eurotrucks2.exe" << std::endl;
-        // rename RobloxPlayerBeta.exe to eurotrucks2.exe
-        fs::rename(pathToVerify, path);
-        // download RobloxPlayerBeta.exe shortcut
-        shortcut();
-    }
-    else if (fs::exists(path) && !fs::exists(pathToVerify)) {
-        std::cout << "eurotrucks2.exe is installed without RobloxPlayerBeta.exe" << std::endl;
-        // download RobloxPlayerBeta.exe shortcut
-        shortcut();
-    }
-    else if (fs::exists(path) && fs::exists(pathToVerify)) {
-        std::cout << "Both RobloxPlayerBeta.exe and eurotrucks2.exe are installed" << std::endl;
-        // delete RobloxPlayerBeta.exe and download new shortcut
-        fs::remove(pathToVerify);
-        // download RobloxPlayerBeta.exe shortcut
-        shortcut();
-    }
-    else {
-        std::cout << "Neither RobloxPlayerBeta.exe nor eurotrucks2.exe is installed" << std::endl;
-        // show message box
-        int result = MessageBoxW(nullptr, L"Roblox installation was not found. Do you want to download it?", L"Warning", MB_OKCANCEL | MB_ICONWARNING);
-        if (result == IDOK) {
-            ShellExecuteW(nullptr, L"open", L"https://www.roblox.com/download/client", nullptr, nullptr, SW_SHOWNORMAL);
+    if (!fishstrap)
+    {
+        // verify files
+        if (!fs::exists(path) && fs::exists(pathToVerify)) {
+            std::cout << "Roblox is installed without eurotrucks2.exe" << std::endl;
+            // rename RobloxPlayerBeta.exe to eurotrucks2.exe
+            fs::rename(pathToVerify, path);
+            // download RobloxPlayerBeta.exe shortcut
+            shortcut();
         }
-        exit(0);
+        else if (fs::exists(path) && !fs::exists(pathToVerify)) {
+            std::cout << "eurotrucks2.exe is installed without RobloxPlayerBeta.exe" << std::endl;
+            // download RobloxPlayerBeta.exe shortcut
+            shortcut();
+        }
+        else if (fs::exists(path) && fs::exists(pathToVerify)) {
+            std::cout << "Both RobloxPlayerBeta.exe and eurotrucks2.exe are installed" << std::endl;
+            // delete RobloxPlayerBeta.exe and download new shortcut
+            fs::remove(pathToVerify);
+            // download RobloxPlayerBeta.exe shortcut
+            shortcut();
+        }
+        else {
+            std::cout << "Neither RobloxPlayerBeta.exe nor eurotrucks2.exe is installed" << std::endl;
+            // show message box
+            int result = MessageBoxW(nullptr, L"Roblox installation was not found. Do you want to download it?", L"Warning", MB_OKCANCEL | MB_ICONWARNING);
+            if (result == IDOK) {
+                ShellExecuteW(nullptr, L"open", L"https://www.roblox.com/download/client", nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            exit(0);
+        }
     }
 }
 
@@ -322,9 +338,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     // comment out for output
     output();
     // installer version
-    std::cout << "* Version: 2.8.16\n";
+    std::cout << "* Version: 2.8.17\n";
     std::cout << "* Bloxshade Installer (developed by Extravi, https://extravi.dev/)\n";
-    std::cout << "* Copyright © 2024 Extravi\n";
+    std::cout << "* Copyright © 2025 Extravi\n";
     std::cout << "* Source Code: https://github.com/Extravi/Bloxshade\n";
 
     // process arguments
@@ -334,7 +350,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
             shortcutarg = true;
         }
         else if (arg == L"-import") {
-            import = true;
+import = true;
         }
         else if (arg == L"-fix") {
             fix = true;
@@ -369,92 +385,129 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     // free memory allocated by CommandLineToArgvW
     LocalFree(argv);
 
-    // roblox path
-    RegGetValueW(HKEY_CURRENT_USER, L"Software\\Classes\\roblox-player\\shell\\open\\command", nullptr, RRF_RT_REG_SZ, nullptr, value, &valueSize);
+    // fishstrap
+    const TCHAR* subKey = TEXT("Software\\Fishstrap");
+    const TCHAR* valueName = TEXT("ApplicationPath");
 
-    // convert string
-    std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
-    std::wstring wstrValue(value);
-    std::string robloxPath = converter.to_bytes(wstrValue);
+    HKEY hKey;
+    LONG result = RegOpenKeyEx(HKEY_CURRENT_USER, subKey, 0, KEY_READ, &hKey);
 
-    // check if path is empty
-    if (robloxPath == "") {
-        // show message box
-        int result = MessageBoxW(nullptr, L"Roblox installation was not found. Do you want to download it?", L"Warning", MB_OKCANCEL | MB_ICONWARNING);
-        if (result == IDOK) {
-            ShellExecuteW(nullptr, L"open", L"https://www.roblox.com/download/client", nullptr, nullptr, SW_SHOWNORMAL);
+    if (result == ERROR_SUCCESS) {
+        TCHAR value[1024];
+        DWORD valueLength = sizeof(value);
+        DWORD valueType;
+
+        result = RegQueryValueEx(hKey, valueName, nullptr, &valueType, (LPBYTE)value, &valueLength);
+
+        if (result == ERROR_SUCCESS && valueType == REG_SZ) {
+            std::wstring_convert<std::codecvt_utf8<TCHAR>, TCHAR> converter;
+            std::string narrowValue = converter.to_bytes(value);
+            std::cout << narrowValue << std::endl;
+            std::string fishstrapInstall = narrowValue + " -bloxshade";
+            std::wstring fishstrapCommand = converter.from_bytes(fishstrapInstall);
+			createAndCloseProcess(fishstrapCommand);
+            fishstrap = true;
         }
-        return 0;
-    }
-
-    // print the reg key
-    std::cout << robloxPath << std::endl;
-
-    // extract the path
-    size_t start = robloxPath.find('"') + 1;
-    size_t end = robloxPath.rfind('"');
-    std::string path = robloxPath.substr(start, end - start);
-    std::string roPath = robloxPath.substr(start, end - start);
-
-    // check the path
-    std::cout << "Path to check: " << path << std::endl; // show the path
-    if (path.find("C:\\Program Files") == 0 || path.find("C:\\Program Files (x86)") == 0) {
-        std::cout << "Program files is true" << std::endl;
-        MessageBox(NULL, L"It seems like Roblox is installed system-wide in the Program Files directory. Please install Roblox in a location other than the Program Files directory.", L"Information", MB_OK | MB_ICONWARNING);
-        return 0;
-    }
-    else {
-        std::cout << "Program files is false" << std::endl;
-    }
-
-    // check if path is under the users directory
-    if (path.find("C:\\Users") == 0) {
-        std::cout << "Users path is true" << std::endl;
-    }
-    else {
-        std::cout << "Users path is false" << std::endl;
-        std::cout << path << std::endl;
-    }
-
-    // Roblox seems to be installled from reg key
-    std::cout << "Roblox install found" << std::endl;
-
-    // kill any running Roblox process
-    WinExec("taskkill /F /IM RobloxPlayerBeta.exe", SW_HIDE);
-    WinExec("taskkill /F /IM eurotrucks2.exe", SW_HIDE);
-
-    // bloxstrap
-    size_t BloxstrapPos = path.find("Bloxstrap.exe");
-
-    // roblox
-    size_t RobloxPos = path.find("RobloxPlayerBeta.exe");
-
-    if (BloxstrapPos != std::string::npos) {
-        path.replace(BloxstrapPos, strlen("Bloxstrap.exe"), "Roblox\\Player");
-        bloxstrap = true;
-    }
-
-    if (RobloxPos != std::string::npos) {
-        path.replace(RobloxPos, strlen("RobloxPlayerBeta.exe"), "eurotrucks2.exe");
-    }
-
-    if (bloxstrap) {
-        std::cout << "Bloxstrap is true" << std::endl;
-        size_t pos = path.find("Roblox\\Player");
-        if (pos != std::string::npos) {
-            path = path.substr(0, pos + strlen("Roblox\\Player"));
+        else {
+            std::cout << "ApplicationPath not found or not of type REG_SZ" << std::endl;
         }
-        // defaultPath is the path to the Roblox folder
-        defaultPath = path;
-        bloxstrapPath = path + "\\RobloxPlayerBeta.exe";
-        path = path + "\\eurotrucks2.exe";
+
+        RegCloseKey(hKey);
     }
-    else {
-        std::cout << "Bloxstrap is false" << std::endl;
-        // defaultPath is the path to the Roblox folder
-        defaultPath = path;
-        defaultPath.replace(RobloxPos, strlen("RobloxPlayerBeta.exe"), "");
-        defaultPath.erase(defaultPath.find_last_of('\\'));
+
+    if (!fishstrap)
+    {
+        std::cout << "Fishstrap installation not found" << std::endl;
+
+        // roblox path
+        RegGetValueW(HKEY_CURRENT_USER, L"Software\\Classes\\roblox-player\\shell\\open\\command", nullptr, RRF_RT_REG_SZ, nullptr, value, &valueSize);
+
+        // convert string
+        std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+        std::wstring wstrValue(value);
+        std::string robloxPath = converter.to_bytes(wstrValue);
+
+        // check if path is empty
+        if (robloxPath == "") {
+            // show message box
+            int result = MessageBoxW(nullptr, L"Roblox installation was not found. Do you want to download it?", L"Warning", MB_OKCANCEL | MB_ICONWARNING);
+            if (result == IDOK) {
+                ShellExecuteW(nullptr, L"open", L"https://www.roblox.com/download/client", nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            return 0;
+        }
+
+        // print the reg key
+        std::cout << robloxPath << std::endl;
+
+        // extract the path
+        size_t start = robloxPath.find('"') + 1;
+        size_t end = robloxPath.rfind('"');
+        path = robloxPath.substr(start, end - start);
+        roPath = robloxPath.substr(start, end - start);
+
+        // check the path
+        std::cout << "Path to check: " << path << std::endl; // show the path
+        if (path.find("C:\\Program Files") == 0 || path.find("C:\\Program Files (x86)") == 0) {
+            std::cout << "Program files is true" << std::endl;
+            MessageBox(NULL, L"It seems like Roblox is installed system-wide in the Program Files directory. Please install Roblox in a location other than the Program Files directory.", L"Information", MB_OK | MB_ICONWARNING);
+            return 0;
+        }
+        else {
+            std::cout << "Program files is false" << std::endl;
+        }
+
+        // check if path is under the users directory
+        if (path.find("C:\\Users") == 0) {
+            std::cout << "Users path is true" << std::endl;
+        }
+        else {
+            std::cout << "Users path is false" << std::endl;
+            std::cout << path << std::endl;
+        }
+
+        // Roblox seems to be installled from reg key
+        std::cout << "Roblox install found" << std::endl;
+
+        // kill any running Roblox process
+        WinExec("taskkill /F /IM RobloxPlayerBeta.exe", SW_HIDE);
+        WinExec("taskkill /F /IM eurotrucks2.exe", SW_HIDE);
+
+        // bloxstrap
+        size_t BloxstrapPos = path.find("Bloxstrap.exe");
+
+        // roblox
+        size_t RobloxPos = path.find("RobloxPlayerBeta.exe");
+
+        if (BloxstrapPos != std::string::npos) 
+        {
+            path.replace(BloxstrapPos, strlen("Bloxstrap.exe"), "Roblox\\Player");
+            bloxstrap = true;
+        }
+
+        if (RobloxPos != std::string::npos) 
+        {
+            path.replace(RobloxPos, strlen("RobloxPlayerBeta.exe"), "eurotrucks2.exe");
+        }
+
+        if (bloxstrap) 
+        {
+            std::cout << "Bloxstrap is true" << std::endl;
+            // show message box
+            int result = MessageBoxW(nullptr, L"Bloxstrap does not support Bloxshade, and Bloxshade no longer wishes to support Bloxstrap. If you want to continue using Bloxstrap, you must switch to Fishstrap. Fishstrap offers support for automatic updates after each Roblox update, allowing you to maintain your Bloxshade installation without needing to reinstall it each time. If you prefer not to use Fishstrap, you can continue to use the standard web client version of Roblox.", L"Information", MB_OKCANCEL | MB_ICONWARNING);
+            if (result == IDOK) {
+                ShellExecuteW(nullptr, L"open", L"https://github.com/returnrqt/fishstrap/releases/latest", nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            return 0;
+        }
+        else 
+        {
+            std::cout << "Bloxstrap is false" << std::endl;
+            // defaultPath is the path to the Roblox folder
+            defaultPath = path;
+            defaultPath.replace(RobloxPos, strlen("RobloxPlayerBeta.exe"), "");
+            defaultPath.erase(defaultPath.find_last_of('\\'));
+        }
     }
 
     // shortcut arg called reinstall shortcut
@@ -533,8 +586,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
     // temp folder individual effects not working when they worked in the past fix
     TCHAR tempPath[MAX_PATH];
-    DWORD result = GetTempPath(MAX_PATH, tempPath);
-    if (result > 0 && result < MAX_PATH) {
+    DWORD tempPathResult = GetTempPath(MAX_PATH, tempPath);
+    if (tempPathResult > 0 && tempPathResult < MAX_PATH) {
         char narrowTempPath[MAX_PATH];
         WideCharToMultiByte(CP_UTF8, 0, tempPath, -1, narrowTempPath, MAX_PATH, NULL, NULL);
         std::cout << "Temporary folder: " << narrowTempPath << std::endl;
@@ -773,16 +826,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
         std::wstring command = converter.from_bytes(strCommand);
         std::wstring commandStart = L"C:\\Program Files\\Bloxshade\\nv\\setup.exe";
-        // create process parameters
-        auto createAndCloseProcess = [](const std::wstring& command) {
-        STARTUPINFOW si = { sizeof(STARTUPINFO) };
-        PROCESS_INFORMATION pi;
-        if (CreateProcessW(NULL, const_cast<LPWSTR>(command.c_str()), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-            WaitForSingleObject(pi.hProcess, INFINITE);
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-        }
-        };
         // wait for process to finish
         std::cout << "Uninstalling the nvidia app to proceed with installation" << std::endl;
         createAndCloseProcess(commandUninstall);
@@ -809,30 +852,35 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
         return 0;
     }
 
-    // verify path
-    if (bloxstrap) {
-        // file paths
-        std::cout << path << std::endl;
-        std::cout << bloxstrapPath << std::endl;
-        std::cout << defaultPath << std::endl;
-        std::cout << anselPath << std::endl;
-        std::cout << presetsPath << std::endl;
-        std::cout << shadersPath << std::endl;
+    if (!fishstrap)
+    { 
+        // verify path
+        if (bloxstrap) {
+            // file paths
+            std::cout << "file path debug info for bloxstrap" << std::endl;
+            std::cout << path << std::endl;
+            std::cout << bloxstrapPath << std::endl;
+            std::cout << defaultPath << std::endl;
+            std::cout << anselPath << std::endl;
+            std::cout << presetsPath << std::endl;
+            std::cout << shadersPath << std::endl;
 
-        // verify files
-        verifyFiles(path, bloxstrapPath);
-    }
-    else {
-        // file paths
-        std::cout << path << std::endl;
-        std::cout << roPath << std::endl;
-        std::cout << defaultPath << std::endl;
-        std::cout << anselPath << std::endl;
-        std::cout << presetsPath << std::endl;
-        std::cout << shadersPath << std::endl;
+            // verify files
+            verifyFiles(path, bloxstrapPath);
+        }
+        else {
+            // file paths
+            std::cout << "file path debug info for roblox" << std::endl;
+            std::cout << path << std::endl;
+            std::cout << roPath << std::endl;
+            std::cout << defaultPath << std::endl;
+            std::cout << anselPath << std::endl;
+            std::cout << presetsPath << std::endl;
+            std::cout << shadersPath << std::endl;
 
-        // verify files
-        verifyFiles(path, roPath);
+            // verify files
+            verifyFiles(path, roPath);
+        }
     }
 
     // verify nvidia files

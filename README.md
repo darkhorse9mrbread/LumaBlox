@@ -1,10 +1,10 @@
-# Bloxshade
-Bloxshade installer source code.
+# LumaBlox
+LumaBlox installer source code.
 
-[![Downloads](https://img.shields.io/github/downloads/Extravi/Bloxshade/total)](https://github.com/Extravi/Bloxshade/releases)
-[![Version](https://img.shields.io/github/v/release/Extravi/Bloxshade?color=5885F4)](https://github.com/Extravi/Bloxshade/releases/latest)
-[![Discord](https://img.shields.io/discord/1204287310204502046?logo=discord&logoColor=white&label=discord&color=5885F4)](https://discord.gg/TNG5yHsEwu)
-[![Stars](https://img.shields.io/github/stars/Extravi/Bloxshade?style=social)](https://github.com/Extravi/Bloxshade/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/Extravi/Bloxshade/total)]()
+[![Version](https://img.shields.io/github/v/release/Extravi/Bloxshade?color=5885F4)]()
+[![Discord](https://img.shields.io/discord/1204287310204502046?logo=discord&logoColor=white&label=discord&color=5885F4)]()
+[![Stars](https://img.shields.io/github/stars/Extravi/Bloxshade?style=social)]()
 
 ## Note
 To compile the Tauri app, you will need to install the Tauri CLI package.
@@ -19,6 +19,6 @@ npm install @tauri-apps/cli
 <img src="https://raw.githubusercontent.com/Extravi/Bloxshade/main/screenshots/Screenshot%202024-05-12%20193442.png">
 
 ## Authors & contact
-Made by [Extravi](https://extravi.dev/).
+Made by [Extravi]().
 
-Email: dante@extravi.dev
+

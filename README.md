@@ -19,6 +19,6 @@ npm install @tauri-apps/cli
 <img src="https://raw.githubusercontent.com/Extravi/Bloxshade/main/screenshots/Screenshot%202024-05-12%20193442.png">
 
 ## Authors & contact
-Made by [Extravi]().
+
 
 
